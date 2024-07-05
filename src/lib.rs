@@ -126,3 +126,52 @@
 pub mod ronomon;
 pub mod v2016;
 pub mod v2020;
+
+// lib.rs
+use std::fs::File;
+use std::os::raw::c_char;
+use std::ffi::{CStr};
+
+#[no_mangle]
+pub extern "C" fn stream_create_chunker(path: *const c_char, min_size: u32, avg_size: u32, max_size: u32) -> *mut v2020::StreamCDC<File> {
+    let c_str = unsafe { CStr::from_ptr(path) };
+    let str_slice = c_str.to_str().unwrap();
+    let file = File::open(str_slice).unwrap();
+    let chunker = Box::new(v2020::StreamCDC::new(file, min_size, avg_size, max_size));
+    Box::into_raw(chunker)
+}
+
+#[no_mangle]
+pub extern "C" fn stream_next_chunk(chunker: *mut v2020::StreamCDC<File>) -> *mut ChunkDataC {
+    let chunker = unsafe { &mut *chunker };
+    match chunker.next() {
+        Some(Ok(chunk)) => {
+            Box::into_raw(Box::new(chunk_data_to_c(&chunk)))
+        },
+        _ => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_free_chunker(chunker: *mut v2020::StreamCDC<File>) {
+    unsafe { let _ = Box::from_raw(chunker); }
+}
+
+fn chunk_data_to_c(chunk: &v2020::ChunkData) -> ChunkDataC {
+    ChunkDataC {
+        hash: chunk.hash,
+        offset: chunk.offset,
+        length: chunk.length,
+    }
+}
+
+#[repr(C)]
+pub struct ChunkDataC {
+    /// The gear hash value as of the end of the chunk.
+    pub hash: u64,
+    /// Starting byte position within the source.
+    pub offset: u64,
+    /// Length of the chunk in bytes.
+    pub length: usize,
+}
+
