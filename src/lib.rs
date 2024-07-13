@@ -146,8 +146,7 @@ pub extern "C" fn stream_next_chunk(chunker: *mut v2020::StreamCDC<File>) -> *mu
     let chunker = unsafe { &mut *chunker };
     match chunker.next() {
         Some(Ok(chunk)) => {
-            let c_chunk = chunk.to_c_compatible();
-            Box::into_raw(Box::new(c_chunk))
+            Box::into_raw(Box::new(chunkdata_to_c(&chunk)))
         },
         _ => std::ptr::null_mut(),
     }
@@ -158,14 +157,17 @@ pub extern "C" fn stream_free_chunker(chunker: *mut v2020::StreamCDC<File>) {
     unsafe { let _ = Box::from_raw(chunker); }
 }
 
-impl ChunkData {
-    pub fn to_c_compatible(&self) -> ChunkDataC {
-        ChunkDataC {
-            hash: self.hash,
-            offset: self.offset,
-            length: self.length,
-            data: self.data.as_ptr(), // 获取Vec<u8>的原始指针
-        }
+#[no_mangle]
+pub extern "C" fn stream_free_chunk_data(chunk_data: *mut ChunkDataC) {
+    unsafe { let _ = Box::from_raw(chunk_data); }
+}
+
+pub fn chunkdata_to_c(chunk: &v2020::ChunkData) -> ChunkDataC {
+    ChunkDataC {
+        hash: chunk.hash,
+        offset: chunk.offset,
+        length: chunk.length,
+        data: chunk.data.as_ptr(),
     }
 }
 
