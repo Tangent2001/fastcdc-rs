@@ -130,6 +130,7 @@ pub mod v2020;
 // lib.rs
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::fs::File;
+use std::mem;
 
 #[no_mangle]
 pub extern "C" fn stream_create_chunker(fd: RawFd, min_size: u32, avg_size: u32, max_size: u32) -> *mut v2020::StreamCDC<File> {
@@ -143,7 +144,7 @@ pub extern "C" fn stream_next_chunk(chunker: *mut v2020::StreamCDC<File>) -> *mu
     let chunker = unsafe { &mut *chunker };
     match chunker.next() {
         Some(Ok(chunk)) => {
-            Box::into_raw(Box::new(chunkdata_to_c(&chunk)))
+            Box::into_raw(Box::new(chunkdata_to_c(chunk)))
         },
         _ => std::ptr::null_mut(),
     }
@@ -155,16 +156,21 @@ pub extern "C" fn stream_free_chunker(chunker: *mut v2020::StreamCDC<File>) {
 }
 
 #[no_mangle]
-pub extern "C" fn stream_free_chunk_data(chunk_data: *mut ChunkDataC) {
-    unsafe { let _ = Box::from_raw(chunk_data); }
+pub extern "C" fn stream_free_chunk_data(chunk_c: *mut ChunkDataC) {
+    unsafe {
+        let chunk = Box::from_raw(chunk_c);
+        Vec::from_raw_parts(chunk.data, chunk.length, chunk.length);
+    }
 }
 
-pub fn chunkdata_to_c(chunk: &v2020::ChunkData) -> ChunkDataC {
+pub fn chunkdata_to_c(mut chunk: v2020::ChunkData) -> ChunkDataC {
+    let data_ptr = chunk.data.as_mut_ptr();
+    mem::forget(chunk.data);
     ChunkDataC {
         hash: chunk.hash,
         offset: chunk.offset,
         length: chunk.length,
-        data: chunk.data.as_ptr(),
+        data: data_ptr,
     }
 }
 
@@ -176,6 +182,6 @@ pub struct ChunkDataC {
     pub offset: u64,
     /// Length of the chunk in bytes.
     pub length: usize,
-    pub data: *const u8,
+    pub data: *mut u8,
 }
 
