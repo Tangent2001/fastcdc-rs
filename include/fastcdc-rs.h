@@ -13,8 +13,8 @@ typedef struct ChunkData {
 #ifdef __cplusplus
 extern "C" {
 #endif
-Chunker stream_create_chunker(int fd, uint32_t min_size, uint32_t avg_size,
-                              uint32_t max_size);
+Chunker stream_create_chunker(const char* path, uint32_t min_size,
+                              uint32_t avg_size, uint32_t max_size);
 ChunkData* stream_next_chunk(Chunker chunker);
 void stream_free_chunk_data(ChunkData* data);
 void stream_free_chunker(Chunker chunker);

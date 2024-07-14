@@ -128,13 +128,20 @@ pub mod v2016;
 pub mod v2020;
 
 // lib.rs
-use std::os::unix::io::{FromRawFd, RawFd};
+
+use std::ffi::{CStr};
 use std::fs::File;
+use std::os::raw::c_char;
 use std::mem;
 
 #[no_mangle]
-pub extern "C" fn stream_create_chunker(fd: RawFd, min_size: u32, avg_size: u32, max_size: u32) -> *mut v2020::StreamCDC<File> {
-    let file = unsafe { File::from_raw_fd(fd) };
+pub extern "C" fn stream_create_chunker(path: *const c_char, min_size: u32, avg_size: u32, max_size: u32) -> *mut v2020::StreamCDC<File> {
+    let c_str = unsafe {
+        assert!(!path.is_null());
+        CStr::from_ptr(path)
+    };
+    let path_str = c_str.to_str().expect("Invalid UTF-8 string");
+    let file = File::open(path_str).expect("Failed to open file");
     let chunker = Box::new(v2020::StreamCDC::new(file, min_size, avg_size, max_size));
     Box::into_raw(chunker)
 }
